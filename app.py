@@ -1,12 +1,14 @@
 import streamlit as st
 import requests
 from datetime import datetime
+import zipfile
+import io
 
 # Configuração da página web
 st.set_page_config(page_title="Conversor ZPL para PDF", page_icon="🖨️")
 
 st.title("🖨️ Conversor Online de ZPL para PDF")
-st.write("Cole o seu código ZPL abaixo para gerar o PDF correspondente instantaneamente.")
+st.write("Converta seus códigos ZPL colando o texto ou enviando um arquivo ZIP com várias etiquetas.")
 
 # --- SEÇÃO DE DOAÇÃO / PIX ---
 st.markdown("---")
@@ -32,31 +34,57 @@ with col1:
 with col2:
     altura = st.number_input("Altura (polegadas)", min_value=1, max_value=12, value=6)
 
-# Campo de texto grande para inserir o ZPL
-codigo_zpl = st.text_area("Código ZPL (Cole aqui):", height=250, placeholder="^XA\n^FO50,50^A0N,50,50^FDExemplo^FS\n^XZ")
+# --- SISTEMA DE ABAS (Colar Texto vs Enviar ZIP) ---
+aba1, aba2 = st.tabs(["📝 Colar Texto ZPL", "📦 Enviar Arquivo .ZIP"])
+
+zpl_final_para_converter = ""
+
+with aba1:
+    codigo_texto = st.text_area("Código ZPL (Cole aqui):", height=200, placeholder="^XA\n^FO50,50^A0N,50,50^FDExemplo^FS\n^XZ")
+
+with aba2:
+    st.info("Envie um arquivo .zip contendo os seus arquivos .txt com os códigos ZPL. O sistema vai juntar tudo em um único PDF.")
+    arquivo_zip_enviado = st.file_uploader("Selecione o arquivo .ZIP", type=["zip"])
 
 # Botão para processar
 if st.button("Gerar PDF", type="primary"):
-    if not codigo_zpl.strip():
-        st.warning("Por favor, insira um código ZPL válido primeiro.")
+    
+    # Lógica para descobrir de onde vem o ZPL (da aba de texto ou da aba do ZIP)
+    if arquivo_zip_enviado is not None:
+        try:
+            # Abre o ZIP na memória
+            with zipfile.ZipFile(arquivo_zip_enviado) as z:
+                # Passa por cada arquivo dentro do ZIP
+                for nome_arquivo in z.namelist():
+                    # Pega apenas arquivos .txt ou .zpl (ignora pastas e arquivos do sistema)
+                    if nome_arquivo.endswith(".txt") or nome_arquivo.endswith(".zpl"):
+                        with z.open(nome_arquivo) as f:
+                            # Lê o texto e adiciona na variável final
+                            conteudo = f.read().decode('utf-8', errors='ignore')
+                            zpl_final_para_converter += conteudo + "\n"
+        except Exception as e:
+            st.error(f"Erro ao ler o arquivo ZIP: {e}")
+            
+    elif codigo_texto.strip():
+        zpl_final_para_converter = codigo_texto.strip()
+
+    # Validação antes de enviar para a API
+    if not zpl_final_para_converter.strip():
+        st.warning("Por favor, insira o código ZPL ou envie um arquivo ZIP válido contendo arquivos de texto.")
     else:
         with st.spinner("Processando e gerando PDF..."):
-            # A URL atualizada sem o /0/ no final para aceitar múltiplas etiquetas
             url = f"http://api.labelary.com/v1/printers/8dpmm/labels/{largura}x{altura}/"
             headers = {"Accept": "application/pdf"}
             
             try:
-                resposta = requests.post(url, headers=headers, data=codigo_zpl.encode('utf-8'))
+                resposta = requests.post(url, headers=headers, data=zpl_final_para_converter.encode('utf-8'))
                 
                 if resposta.status_code == 200:
                     st.success("PDF gerado com sucesso!")
                     
-                    # --- GERAÇÃO DO NOME COM DATA E HORA ---
-                    # Formato: etiquetas_DD-MM-AAAA_HH-MM.pdf
                     data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M")
                     nome_do_arquivo = f"etiquetas_{data_hora_atual}.pdf"
                     
-                    # Cria o botão de download com o nome dinâmico
                     st.download_button(
                         label="📥 Baixar Arquivo PDF",
                         data=resposta.content,
