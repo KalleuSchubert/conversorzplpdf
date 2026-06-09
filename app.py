@@ -42,7 +42,7 @@ if st.button("Gerar PDF", type="primary"):
     else:
         with st.spinner("Processando e gerando PDF..."):
             # Configuração da API do Labelary
-            url = f"http://api.labelary.com/v1/printers/8dpmm/labels/{largura}x{altura}/0/"
+            url = f"http://api.labelary.com/v1/printers/8dpmm/labels/{largura}x{altura}/"
             headers = {"Accept": "application/pdf"}
             
             try:
