@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from datetime import datetime
 
 # Configuração da página web
 st.set_page_config(page_title="Conversor ZPL para PDF", page_icon="🖨️")
@@ -17,7 +18,6 @@ SUA_CHAVE_CNPJ = "60883693000130"
 
 col_pix1, col_pix2 = st.columns([1, 3])
 with col_pix1:
-    # Esse truque gera a imagem do QR Code na hora com base no seu código!
     st.image(f"https://quickchart.io/qr?text={PIX_COPIA_E_COLA}&size=150", width=150)
 with col_pix2:
     st.write(f"🔑 **Chave Pix (CNPJ):** `{SUA_CHAVE_CNPJ}`")
@@ -41,7 +41,7 @@ if st.button("Gerar PDF", type="primary"):
         st.warning("Por favor, insira um código ZPL válido primeiro.")
     else:
         with st.spinner("Processando e gerando PDF..."):
-            # Configuração da API do Labelary
+            # A URL atualizada sem o /0/ no final para aceitar múltiplas etiquetas
             url = f"http://api.labelary.com/v1/printers/8dpmm/labels/{largura}x{altura}/"
             headers = {"Accept": "application/pdf"}
             
@@ -51,11 +51,16 @@ if st.button("Gerar PDF", type="primary"):
                 if resposta.status_code == 200:
                     st.success("PDF gerado com sucesso!")
                     
-                    # Cria um botão de download para o usuário baixar o PDF gerado
+                    # --- GERAÇÃO DO NOME COM DATA E HORA ---
+                    # Formato: etiquetas_DD-MM-AAAA_HH-MM.pdf
+                    data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M")
+                    nome_do_arquivo = f"etiquetas_{data_hora_atual}.pdf"
+                    
+                    # Cria o botão de download com o nome dinâmico
                     st.download_button(
                         label="📥 Baixar Arquivo PDF",
                         data=resposta.content,
-                        file_name="etiqueta_zpl.pdf",
+                        file_name=nome_do_arquivo,
                         mime="application/pdf"
                     )
                 else:
